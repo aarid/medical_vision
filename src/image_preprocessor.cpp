@@ -4,6 +4,7 @@
  */
 
 #include "../include/medical_vision/image_preprocessor.hpp"
+#include <iostream>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/photo.hpp>
@@ -60,20 +61,59 @@ std::string ImagePreprocessor::getImageType() const {
 
 // ---------- Noise Reduction ----------
 
+
 bool ImagePreprocessor::denoise(NoiseReductionMethod method) {
     if (!checkImageLoaded()) return false;
 
-    switch (method) {
-        case NoiseReductionMethod::GAUSSIAN:
-            return gaussianBlur();
-        case NoiseReductionMethod::MEDIAN:
-            return medianBlur();
-        case NoiseReductionMethod::BILATERAL:
-            return bilateralFilter();
-        case NoiseReductionMethod::NLM:
-            return nonLocalMeans();
-        default:
-            return false;
+    try {
+        switch (method) {
+            case NoiseReductionMethod::GAUSSIAN:
+                return gaussianBlur();
+            
+            case NoiseReductionMethod::MEDIAN:
+                return medianBlur();
+            
+            case NoiseReductionMethod::BILATERAL: {
+                cv::Mat temp;
+                if (image_.type() != CV_8UC1 && image_.type() != CV_8UC3) {
+                    image_.convertTo(temp, CV_8U);
+                } else {
+                    temp = image_.clone();
+                }
+
+                if (temp.channels() == 1) {
+                    cv::bilateralFilter(temp, image_, 9, 75, 75);
+                } else {
+                    cv::Mat result;
+                    cv::bilateralFilter(temp, result, 9, 75, 75);
+                    result.copyTo(image_);
+                }
+                return true;
+            }
+            
+            case NoiseReductionMethod::NLM: {
+                cv::Mat temp;
+                if (image_.type() != CV_8UC1 && image_.type() != CV_8UC3) {
+                    image_.convertTo(temp, CV_8U);
+                } else {
+                    temp = image_.clone();
+                }
+
+                if (temp.channels() == 1) {
+                    cv::fastNlMeansDenoising(temp, image_);
+                } else {
+                    cv::fastNlMeansDenoisingColored(temp, image_);
+                }
+                return true;
+            }
+            
+            default:
+                return false;
+        }
+    }
+    catch (const cv::Exception& e) {
+        std::cerr << "OpenCV error: " << e.what() << std::endl;
+        return false;
     }
 }
 
@@ -121,6 +161,7 @@ bool ImagePreprocessor::adjustContrast(double alpha, double beta) {
     return true;
 }
 
+
 bool ImagePreprocessor::histogramProcessing(HistogramMethod method) {
     if (!checkImageLoaded()) return false;
 
@@ -142,9 +183,20 @@ bool ImagePreprocessor::histogramProcessing(HistogramMethod method) {
         case HistogramMethod::CLAHE:
             return clahe();
         case HistogramMethod::STRETCHING: {
-            double minVal, maxVal;
-            cv::minMaxLoc(image_, &minVal, &maxVal);
-            image_.convertTo(image_, -1, 255.0/(maxVal - minVal), -minVal * 255.0/(maxVal - minVal));
+            if (image_.channels() == 1) {
+                double minVal, maxVal;
+                cv::minMaxLoc(image_, &minVal, &maxVal);
+                image_.convertTo(image_, -1, 255.0/(maxVal - minVal), -minVal * 255.0/(maxVal - minVal));
+            } else {
+                std::vector<cv::Mat> channels;
+                cv::split(image_, channels);
+                for (auto& channel : channels) {
+                    double minVal, maxVal;
+                    cv::minMaxLoc(channel, &minVal, &maxVal);
+                    channel.convertTo(channel, -1, 255.0/(maxVal - minVal), -minVal * 255.0/(maxVal - minVal));
+                }
+                cv::merge(channels, image_);
+            }
             return true;
         }
         default:
@@ -156,6 +208,7 @@ bool ImagePreprocessor::clahe(double clipLimit, cv::Size tileGridSize) {
     if (!checkImageLoaded()) return false;
 
     cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(clipLimit, tileGridSize);
+    
     if (image_.channels() == 1) {
         clahe->apply(image_, image_);
     } else {
@@ -180,16 +233,37 @@ bool ImagePreprocessor::sharpen(double strength) {
         -1,  9, -1,
         -1, -1, -1);
     kernel *= strength;
-    cv::filter2D(image_, image_, -1, kernel);
+
+    if (image_.channels() == 1) {
+        cv::filter2D(image_, image_, -1, kernel);
+    } else {
+        std::vector<cv::Mat> channels;
+        cv::split(image_, channels);
+        for (auto& channel : channels) {
+            cv::filter2D(channel, channel, -1, kernel);
+        }
+        cv::merge(channels, image_);
+    }
     return true;
 }
 
 bool ImagePreprocessor::unsharpMask(double sigma, double strength) {
     if (!checkImageLoaded()) return false;
     
-    cv::Mat blurred;
-    cv::GaussianBlur(image_, blurred, cv::Size(), sigma);
-    cv::addWeighted(image_, 1.0 + strength, blurred, -strength, 0, image_);
+    if (image_.channels() == 1) {
+        cv::Mat blurred;
+        cv::GaussianBlur(image_, blurred, cv::Size(), sigma);
+        cv::addWeighted(image_, 1.0 + strength, blurred, -strength, 0, image_);
+    } else {
+        std::vector<cv::Mat> channels;
+        cv::split(image_, channels);
+        for (auto& channel : channels) {
+            cv::Mat blurred;
+            cv::GaussianBlur(channel, blurred, cv::Size(), sigma);
+            cv::addWeighted(channel, 1.0 + strength, blurred, -strength, 0, channel);
+        }
+        cv::merge(channels, image_);
+    }
     return true;
 }
 
