@@ -43,8 +43,9 @@ public:
     };
 
     struct WatershedParams {
-        cv::Mat markers;           // Input markers for watershed
-        bool useDistanceTransform{false};
+    bool useDistanceTransform{true};
+    std::vector<cv::Point> foregroundSeeds;
+    std::vector<cv::Point> backgroundSeeds;
     };
 
     struct GraphCutParams {

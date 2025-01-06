@@ -171,6 +171,83 @@ cv::Mat Segmentation::regionGrowing(const cv::Mat& input, const RegionGrowingPar
     return mask;
 }
 
+cv::Mat Segmentation::watershed(const cv::Mat& input, const WatershedParams& params) {
+    try {
+        cv::Mat processed = prepareImage(input);
+        cv::Mat markers = cv::Mat::zeros(processed.size(), CV_32S);
+
+        if (params.useDistanceTransform) {
+            // Use distance transform approach
+            cv::Mat binary;
+            cv::threshold(processed, binary, 0, 255, cv::THRESH_BINARY + cv::THRESH_OTSU);
+            
+            // Compute distance transform
+            cv::Mat dist;
+            cv::distanceTransform(binary, dist, cv::DIST_L2, 3);
+            
+            // Normalize and threshold for foreground markers
+            cv::normalize(dist, dist, 0, 1.0, cv::NORM_MINMAX);
+            cv::Mat foreground;
+            cv::threshold(dist, foreground, 0.3, 1.0, cv::THRESH_BINARY);
+            
+            // Dilate for background markers
+            cv::Mat background;
+            cv::dilate(binary, background, cv::Mat(), cv::Point(-1,-1), 3);
+            cv::threshold(background, background, 1, 128, cv::THRESH_BINARY_INV);
+
+            // Combine markers
+            markers = background + cv::Mat(foreground * 255);
+        }
+        else if (!params.foregroundSeeds.empty() || !params.backgroundSeeds.empty()) {
+            // Use manual seeds
+            markers = cv::Mat::zeros(processed.size(), CV_32S);
+            
+            // Mark background seeds
+            for (const auto& seed : params.backgroundSeeds) {
+                if (seed.x >= 0 && seed.x < markers.cols && 
+                    seed.y >= 0 && seed.y < markers.rows) {
+                    cv::circle(markers, seed, 2, cv::Scalar(1), -1);
+                }
+            }
+            
+            // Mark foreground seeds
+            for (const auto& seed : params.foregroundSeeds) {
+                if (seed.x >= 0 && seed.x < markers.cols && 
+                    seed.y >= 0 && seed.y < markers.rows) {
+                    cv::circle(markers, seed, 2, cv::Scalar(2), -1);
+                }
+            }
+        }
+        else {
+            throw std::runtime_error("No valid markers or seeds provided for watershed");
+        }
+
+        // Prepare input image for watershed
+        cv::Mat inputBGR;
+        if (input.channels() == 1) {
+            cv::cvtColor(input, inputBGR, cv::COLOR_GRAY2BGR);
+        } else {
+            inputBGR = input.clone();
+        }
+
+        // Apply watershed
+        cv::watershed(inputBGR, markers);
+
+        // Create result mask
+        cv::Mat result = cv::Mat::zeros(markers.size(), CV_8UC1);
+        result.setTo(255, markers == 2);  // Foreground regions
+
+        // Optional: Clean up the result
+        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3,3));
+        cv::morphologyEx(result, result, cv::MORPH_CLOSE, kernel);
+
+        return result;
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Watershed segmentation failed: ") + e.what());
+    }
+}
+
 std::vector<std::vector<cv::Point>> Segmentation::getContours(const cv::Mat& mask) {
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;
