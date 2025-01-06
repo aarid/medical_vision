@@ -48,8 +48,6 @@ void MainWindow::setupUI() {
 
     // Histogram
     histogramViewer = new HistogramViewer(this);
-    histogramViewer->setTitle(tr("Histogram"));
-    histogramViewer->setMinimumHeight(200);  
     leftLayout->addWidget(histogramViewer);
 
     // Right panel (Controls)

@@ -11,15 +11,12 @@ public:
     ~HistogramViewer() = default;
 
     void setHistogram(const cv::Mat& histogram);
-    void setTitle(const QString& title);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
-    cv::Mat histogramData;
-    QString titleText;
-    static constexpr int MARGIN = 20;
-    static constexpr int AXIS_LABEL_MARGIN = 15;
-    static constexpr int STEPS = 4;
+    QImage histogramImage;
+    static constexpr int MIN_WIDTH = 512;
+    static constexpr int MIN_HEIGHT = 200;
 };
