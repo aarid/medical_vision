@@ -4,8 +4,11 @@
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QComboBox>
+#include <QtWidgets/QStackedWidget>
 #include <QtWidgets/QRadioButton>
-#include "../include/medical_vision/segmentation.hpp"
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QLabel>
+#include "../../include/medical_vision/segmentation.hpp"
 
 class SegmentationPanel : public QGroupBox {
     Q_OBJECT

@@ -4,7 +4,7 @@
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QComboBox>
-#include "../include/medical_vision/feature_detector.hpp"
+#include "../../include/medical_vision/feature_detector.hpp"
 
 class FeaturePanel : public QGroupBox {
     Q_OBJECT

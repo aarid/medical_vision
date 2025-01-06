@@ -1,17 +1,15 @@
 #pragma once
 
 #include <QtWidgets/QMainWindow>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QLabel>
-#include <QtWidgets/QCheckBox>
-#include <QtWidgets/QSpinBox>
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QDoubleSpinBox>
-#include <QtWidgets/QListWidget>
-#include <QtWidgets/QGroupBox>
-#include <QtWidgets/QRadioButton>
+
+#include "widgets/image_viewer.hpp"
+#include "widgets/histogram_viewer.hpp"
+#include "widgets/processing_panel.hpp"
+#include "widgets/feature_panel.hpp"
+#include "widgets/segmentation_panel.hpp"
+
 #include "../include/medical_vision/image_preprocessor.hpp"
 #include "../include/medical_vision/feature_detector.hpp"
 #include "../include/medical_vision/segmentation.hpp"
@@ -20,102 +18,42 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() = default;
 
-
-protected:
-    // Override mouse events
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;  // Optionnel: pour feedback
-
 private slots:
-    void selectFolder();
+    void openFolder();
     void nextImage();
     void previousImage();
-    void updateImage();
     void processImage();
-    void processFeatures();
-    void processSegmentation();
-    void updateDisplay();
+    void handleSeedPlacement(cv::Point pos, Qt::MouseButton button);
 
 private:
-    // UI Setup functions
     void setupUI();
-    void createMenus();
-    void updateNavigationControls();
-    QGroupBox* createProcessingGroup();
-    QGroupBox* createFeatureDetectionGroup();
-    QGroupBox* createSegmentationGroup();
-    QImage matToQImage(const cv::Mat& mat);
+    void setupMenus();
+    void setupConnections();
+    void updateNavigationState();
+    void loadCurrentImage();
 
-     // Helper functions for seed placement
-    bool isWatershedActive() const;
-    cv::Point getImageCoordinates(const QPoint& windowPos) const;
-    QRect getImageViewRect() const;
+    // UI Components
+    ImageViewer* originalViewer{nullptr};
+    ImageViewer* processedViewer{nullptr};
+    HistogramViewer* histogramViewer{nullptr};
+    ProcessingPanel* processingPanel{nullptr};
+    FeaturePanel* featurePanel{nullptr};
+    SegmentationPanel* segmentationPanel{nullptr};
+    
+    // Navigation controls
+    QPushButton* prevButton{nullptr};
+    QPushButton* nextButton{nullptr};
+    QLabel* imageCountLabel{nullptr};
 
-    // Core components
-    QWidget* centralWidget;
+    // Processing core
     medical_vision::ImagePreprocessor processor;
     medical_vision::FeatureDetector featureDetector;
+    medical_vision::Segmentation segmentation;
+
+    // Image data
     QStringList imageFiles;
     size_t currentImageIndex{0};
-
-    // Navigation components
-    QPushButton* prevButton;
-    QPushButton* nextButton;
-    QLabel* imageCountLabel;
-
-    // Display components
-    QLabel* imageViewerOriginal;
-    QLabel* imageViewerProcessed;
-    QLabel* histogramView;
-
-    // Image processing controls
-    QCheckBox* denoiseCheck;
-    QCheckBox* claheCheck;
-    QCheckBox* sharpenCheck;
-    QDoubleSpinBox* strengthSpinner;
-    QListWidget* pipelineList;
-
-    // Feature detection controls
-    QComboBox* edgeDetectorCombo;
-    QComboBox* keypointDetectorCombo;
-    QCheckBox* showEdgesCheck;
-    QCheckBox* showKeypointsCheck;
-    QSpinBox* threshold1Spin;
-    QSpinBox* threshold2Spin;
-    QSpinBox* apertureSizeSpin;
-    QSpinBox* maxKeypointsSpin;
-
-    // Feature detection results
-    cv::Mat edgeResult;
-    std::vector<cv::KeyPoint> keypointResult;
-
-    // Segmentation controls
-
-    QComboBox* segmentationMethodCombo;
-    QSpinBox* thresholdSpin;
-    QSpinBox* maxValueSpin;
-    QSpinBox* blockSizeSpin;
-    QDoubleSpinBox* paramCSpin;
-    QCheckBox* invertColorsCheck;
-    QCheckBox* showSegmentationCheck;
-
-     // Segmentation
-    medical_vision::Segmentation segmentation;
-    cv::Mat segmentationResult;
-    std::vector<cv::Point> seedPoints;  // for region growing
-    // Watershed controls
-    QRadioButton* seedsRadio;
-    QRadioButton* distanceTransformRadio;
-    QPushButton* clearSeedsButton;
-    QLabel* seedInstructionsLabel;
-    bool isSettingSeeds{false};
-    std::vector<cv::Point> foregroundSeeds;
-    std::vector<cv::Point> backgroundSeeds;
-    
-    // Seed placement state
-    bool isPlacingSeeds{false};
-    QLabel* seedInstructionLabel{nullptr};
 };

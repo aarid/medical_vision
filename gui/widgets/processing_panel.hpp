@@ -2,8 +2,9 @@
 
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QCheckBox>
+#include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
-#include "../include/medical_vision/image_preprocessor.hpp"
+#include "../../include/medical_vision/image_preprocessor.hpp"
 
 class ProcessingPanel : public QGroupBox {
     Q_OBJECT
