@@ -6,7 +6,7 @@
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QScrollArea>
 #include <QtGui/QPalette>
-#include <QtGui/QColor>
+#include <QtGui/QMouseEvent>
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QFileInfo>
@@ -217,72 +217,43 @@ QGroupBox* MainWindow::createSegmentationGroup() {
 
     // Method selection
     auto methodLayout = new QHBoxLayout;
-    methodLayout->addWidget(new QLabel("Method:"));
     segmentationMethodCombo = new QComboBox(this);
     segmentationMethodCombo->addItem("Threshold", static_cast<int>(medical_vision::Segmentation::Method::THRESHOLD));
     segmentationMethodCombo->addItem("Otsu", static_cast<int>(medical_vision::Segmentation::Method::OTSU));
     segmentationMethodCombo->addItem("Adaptive", static_cast<int>(medical_vision::Segmentation::Method::ADAPTIVE_GAUSSIAN));
-    segmentationMethodCombo->addItem("Region Growing", static_cast<int>(medical_vision::Segmentation::Method::REGION_GROWING));
+    segmentationMethodCombo->addItem("Watershed", static_cast<int>(medical_vision::Segmentation::Method::WATERSHED));
+    methodLayout->addWidget(new QLabel("Method:"));
     methodLayout->addWidget(segmentationMethodCombo);
 
-    // Parameters
-    auto paramsGroup = new QGroupBox("Parameters");
-    auto paramsLayout = new QGridLayout(paramsGroup);
+    // Parameters stacked widget
+    paramStack = new QStackedWidget(this);
+    
+    // Basic threshold params
+    auto thresholdWidget = new QWidget;
+    auto thresholdLayout = new QGridLayout(thresholdWidget);
+    setupThresholdControls(thresholdLayout);
+    paramStack->addWidget(thresholdWidget);
 
-    // Threshold parameters
-    thresholdSpin = new QSpinBox(this);
-    thresholdSpin->setRange(0, 255);
-    thresholdSpin->setValue(128);
-    paramsLayout->addWidget(new QLabel("Threshold:"), 0, 0);
-    paramsLayout->addWidget(thresholdSpin, 0, 1);
+    // Adaptive params
+    auto adaptiveWidget = new QWidget;
+    auto adaptiveLayout = new QGridLayout(adaptiveWidget);
+    setupAdaptiveControls(adaptiveLayout);
+    paramStack->addWidget(adaptiveWidget);
 
-    maxValueSpin = new QSpinBox(this);
-    maxValueSpin->setRange(0, 255);
-    maxValueSpin->setValue(255);
-    paramsLayout->addWidget(new QLabel("Max Value:"), 1, 0);
-    paramsLayout->addWidget(maxValueSpin, 1, 1);
-
-    // Adaptive parameters
-    blockSizeSpin = new QSpinBox(this);
-    blockSizeSpin->setRange(3, 99);
-    blockSizeSpin->setValue(11);
-    blockSizeSpin->setSingleStep(2);
-    paramsLayout->addWidget(new QLabel("Block Size:"), 2, 0);
-    paramsLayout->addWidget(blockSizeSpin, 2, 1);
-
-    paramCSpin = new QDoubleSpinBox(this);
-    paramCSpin->setRange(-100, 100);
-    paramCSpin->setValue(2);
-    paramCSpin->setSingleStep(0.5);
-    paramsLayout->addWidget(new QLabel("Parameter C:"), 3, 0);
-    paramsLayout->addWidget(paramCSpin, 3, 1);
-
-    invertColorsCheck = new QCheckBox("Invert Colors");
-    paramsLayout->addWidget(invertColorsCheck, 4, 0, 1, 2);
-
-    showSegmentationCheck = new QCheckBox("Show Segmentation");
-    showSegmentationCheck->setChecked(true);
+    // Watershed params
+    auto watershedWidget = new QWidget;
+    auto watershedLayout = new QVBoxLayout(watershedWidget);
+    setupWatershedControls(watershedLayout);
+    paramStack->addWidget(watershedWidget);
 
     // Add to main layout
     layout->addLayout(methodLayout);
-    layout->addWidget(paramsGroup);
+    layout->addWidget(paramStack);
     layout->addWidget(showSegmentationCheck);
 
-    // Connect signals
+    // Connect method change to parameter stack
     connect(segmentationMethodCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::processSegmentation);
-    connect(thresholdSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &MainWindow::processSegmentation);
-    connect(maxValueSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &MainWindow::processSegmentation);
-    connect(blockSizeSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &MainWindow::processSegmentation);
-    connect(paramCSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-            this, &MainWindow::processSegmentation);
-    connect(invertColorsCheck, &QCheckBox::stateChanged,
-            this, &MainWindow::processSegmentation);
-    connect(showSegmentationCheck, &QCheckBox::stateChanged,
-            this, &MainWindow::updateDisplay);
+            this, &MainWindow::updateParameterStack);
 
     return group;
 }
@@ -478,13 +449,12 @@ void MainWindow::processSegmentation() {
                 segmentationResult = segmentation.adaptiveThreshold(input, params);
                 break;
             }
-            case medical_vision::Segmentation::Method::REGION_GROWING: {
-                if (!seedPoints.empty()) {
-                    medical_vision::Segmentation::RegionGrowingParams params;
-                    params.seeds = seedPoints;
-                    params.threshold = thresholdSpin->value();
-                    segmentationResult = segmentation.regionGrowing(input, params);
-                }
+            case medical_vision::Segmentation::Method::WATERSHED: {
+                medical_vision::Segmentation::WatershedParams params;
+                params.useDistanceTransform = distanceTransformRadio->isChecked();
+                params.foregroundSeeds = foregroundSeeds;
+                params.backgroundSeeds = backgroundSeeds;
+                segmentationResult = segmentation.watershed(input, params);
                 break;
             }
         }
@@ -502,33 +472,41 @@ void MainWindow::updateDisplay() {
     if (!processor.isLoaded()) return;
 
     cv::Mat displayImage = processor.getImage().clone();
-    
-    // Convert grayscale to BGR if needed
+    bool hasOverlay = false;
+
+    // Convert to BGR if needed
     if (displayImage.channels() == 1) {
         cv::cvtColor(displayImage, displayImage, cv::COLOR_GRAY2BGR);
     }
 
-    if (showEdgesCheck->isChecked() && !edgeResult.empty()) {
-        // Convert edge result to BGR for overlay
-        cv::Mat edges;
-        cv::cvtColor(edgeResult, edges, cv::COLOR_GRAY2BGR);
-        
-        // Create colored edge overlay (red)
-        cv::Mat coloredEdges = cv::Mat::zeros(edges.size(), CV_8UC3);
-        coloredEdges.setTo(cv::Scalar(0, 0, 255), edgeResult);
-        
-        // Blend images
-        cv::addWeighted(displayImage, 0.7, coloredEdges, 0.3, 0, displayImage);
-    }
-
-    if (showKeypointsCheck->isChecked() && !keypointResult.empty()) {
-        displayImage = featureDetector.drawKeypoints(displayImage, keypointResult);
-    }
-
+    // Draw segmentation
     if (showSegmentationCheck->isChecked() && !segmentationResult.empty()) {
-        displayImage = segmentation.drawSegmentation(displayImage, segmentationResult, 0.3);
+        // Create colored overlay (semi-transparent)
+        cv::Mat overlay = displayImage.clone();
+        overlay.setTo(cv::Scalar(0, 0, 255), segmentationResult);  // Red for segmentation
+        cv::addWeighted(overlay, 0.3, displayImage, 0.7, 0, displayImage);
+        hasOverlay = true;
+
+        // Draw contours
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContours(segmentationResult, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+        cv::drawContours(displayImage, contours, -1, cv::Scalar(255, 255, 255), 1);
     }
 
+    // Draw seeds for watershed if active
+    if (segmentationMethodCombo->currentData().toInt() == 
+        static_cast<int>(medical_vision::Segmentation::Method::WATERSHED)) {
+        // Draw foreground seeds
+        for (const auto& seed : foregroundSeeds) {
+            cv::circle(displayImage, seed, 3, cv::Scalar(0, 255, 0), -1);  // Green
+        }
+        // Draw background seeds
+        for (const auto& seed : backgroundSeeds) {
+            cv::circle(displayImage, seed, 3, cv::Scalar(255, 0, 0), -1);  // Blue
+        }
+    }
+
+    // Convert to QImage and display
     QImage qimg = matToQImage(displayImage);
     imageViewerProcessed->setPixmap(QPixmap::fromImage(qimg).scaled(
         imageViewerProcessed->size(), 
@@ -556,4 +534,99 @@ QImage MainWindow::matToQImage(const cv::Mat& mat) {
     }
 
     return QImage();
+}
+
+bool MainWindow::isWatershedActive() const {
+    return segmentationMethodCombo->currentData().toInt() == 
+           static_cast<int>(medical_vision::Segmentation::Method::WATERSHED);
+}
+
+cv::Point MainWindow::getImageCoordinates(const QPoint& windowPos) const {
+    // Get image viewer geometry
+    QRect viewRect = getImageViewRect();
+    if (!viewRect.isValid()) return cv::Point(-1, -1);
+
+    // Get relative position in the view
+    QPoint relativePos = imageViewerProcessed->mapFrom(this, windowPos);
+    
+    // Check if click is inside the actual image
+    if (!viewRect.contains(relativePos)) return cv::Point(-1, -1);
+
+    // Calculate scaling factors
+    double scaleX = static_cast<double>(processor.getImage().cols) / viewRect.width();
+    double scaleY = static_cast<double>(processor.getImage().rows) / viewRect.height();
+
+    // Convert to image coordinates
+    int imgX = static_cast<int>((relativePos.x() - viewRect.x()) * scaleX);
+    int imgY = static_cast<int>((relativePos.y() - viewRect.y()) * scaleY);
+
+    return cv::Point(imgX, imgY);
+}
+
+QRect MainWindow::getImageViewRect() const {
+    if (!imageViewerProcessed || processor.getImage().empty()) return QRect();
+
+    QSize viewSize = imageViewerProcessed->size();
+    QSize imgSize(processor.getImage().cols, processor.getImage().rows);
+
+    // Calculate aspect ratios
+    double imgAspect = static_cast<double>(imgSize.width()) / imgSize.height();
+    double viewAspect = static_cast<double>(viewSize.width()) / viewSize.height();
+
+    // Calculate actual image rectangle within the view
+    QRect imageRect;
+    if (imgAspect > viewAspect) {
+        // Image is wider than view
+        int height = static_cast<int>(viewSize.width() / imgAspect);
+        int y = (viewSize.height() - height) / 2;
+        imageRect = QRect(0, y, viewSize.width(), height);
+    } else {
+        // Image is taller than view
+        int width = static_cast<int>(viewSize.height() * imgAspect);
+        int x = (viewSize.width() - width) / 2;
+        imageRect = QRect(x, 0, width, viewSize.height());
+    }
+
+    return imageRect;
+}
+
+void MainWindow::mousePressEvent(QMouseEvent* event) {
+    if (!isWatershedActive() || !processor.isLoaded()) {
+        QMainWindow::mousePressEvent(event);
+        return;
+    }
+
+    cv::Point imgPos = getImageCoordinates(event->pos());
+    if (imgPos.x < 0 || imgPos.y < 0) {
+        QMainWindow::mousePressEvent(event);
+        return;
+    }
+
+    // Add seed point based on mouse button
+    if (event->button() == Qt::LeftButton) {
+        foregroundSeeds.push_back(imgPos);
+        statusBar()->showMessage("Added foreground seed", 2000);
+    } else if (event->button() == Qt::RightButton) {
+        backgroundSeeds.push_back(imgPos);
+        statusBar()->showMessage("Added background seed", 2000);
+    }
+
+    // Update segmentation and display
+    processSegmentation();
+    event->accept();
+}
+
+// Optionnel: feedback visuel pendant le mouvement de la souris
+void MainWindow::mouseMoveEvent(QMouseEvent* event) {
+    if (!isWatershedActive() || !processor.isLoaded()) {
+        QMainWindow::mouseMoveEvent(event);
+        return;
+    }
+
+    cv::Point imgPos = getImageCoordinates(event->pos());
+    if (imgPos.x >= 0 && imgPos.y >= 0) {
+        statusBar()->showMessage(QString("Image position: (%1, %2)").arg(imgPos.x).arg(imgPos.y));
+    }
+
+    event->accept();
 }

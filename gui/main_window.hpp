@@ -11,6 +11,7 @@
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QListWidget>
 #include <QtWidgets/QGroupBox>
+#include <QtWidgets/QRadioButton>
 #include "../include/medical_vision/image_preprocessor.hpp"
 #include "../include/medical_vision/feature_detector.hpp"
 #include "../include/medical_vision/segmentation.hpp"
@@ -21,6 +22,12 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() = default;
+
+
+protected:
+    // Override mouse events
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;  // Optionnel: pour feedback
 
 private slots:
     void selectFolder();
@@ -41,6 +48,11 @@ private:
     QGroupBox* createFeatureDetectionGroup();
     QGroupBox* createSegmentationGroup();
     QImage matToQImage(const cv::Mat& mat);
+
+     // Helper functions for seed placement
+    bool isWatershedActive() const;
+    cv::Point getImageCoordinates(const QPoint& windowPos) const;
+    QRect getImageViewRect() const;
 
     // Core components
     QWidget* centralWidget;
@@ -94,4 +106,16 @@ private:
     medical_vision::Segmentation segmentation;
     cv::Mat segmentationResult;
     std::vector<cv::Point> seedPoints;  // for region growing
+    // Watershed controls
+    QRadioButton* seedsRadio;
+    QRadioButton* distanceTransformRadio;
+    QPushButton* clearSeedsButton;
+    QLabel* seedInstructionsLabel;
+    bool isSettingSeeds{false};
+    std::vector<cv::Point> foregroundSeeds;
+    std::vector<cv::Point> backgroundSeeds;
+    
+    // Seed placement state
+    bool isPlacingSeeds{false};
+    QLabel* seedInstructionLabel{nullptr};
 };
