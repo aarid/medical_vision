@@ -13,6 +13,7 @@
 #include <QtWidgets/QGroupBox>
 #include "../include/medical_vision/image_preprocessor.hpp"
 #include "../include/medical_vision/feature_detector.hpp"
+#include "../include/medical_vision/segmentation.hpp"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -28,7 +29,8 @@ private slots:
     void updateImage();
     void processImage();
     void processFeatures();
-    void updateFeatureDisplay();
+    void processSegmentation();
+    void updateDisplay();
 
 private:
     // UI Setup functions
@@ -37,6 +39,7 @@ private:
     void updateNavigationControls();
     QGroupBox* createProcessingGroup();
     QGroupBox* createFeatureDetectionGroup();
+    QGroupBox* createSegmentationGroup();
     QImage matToQImage(const cv::Mat& mat);
 
     // Core components
@@ -76,4 +79,19 @@ private:
     // Feature detection results
     cv::Mat edgeResult;
     std::vector<cv::KeyPoint> keypointResult;
+
+    // Segmentation controls
+
+    QComboBox* segmentationMethodCombo;
+    QSpinBox* thresholdSpin;
+    QSpinBox* maxValueSpin;
+    QSpinBox* blockSizeSpin;
+    QDoubleSpinBox* paramCSpin;
+    QCheckBox* invertColorsCheck;
+    QCheckBox* showSegmentationCheck;
+
+     // Segmentation
+    medical_vision::Segmentation segmentation;
+    cv::Mat segmentationResult;
+    std::vector<cv::Point> seedPoints;  // for region growing
 };

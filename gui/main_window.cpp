@@ -78,6 +78,7 @@ void MainWindow::setupUI() {
 
     scrollLayout->addWidget(createProcessingGroup());
     scrollLayout->addWidget(createFeatureDetectionGroup());
+    scrollLayout->addWidget(createSegmentationGroup());
     scrollLayout->addStretch();
 
     scrollWidget->setLayout(scrollLayout);
@@ -203,9 +204,85 @@ QGroupBox* MainWindow::createFeatureDetectionGroup() {
     connect(maxKeypointsSpin, QOverload<int>::of(&QSpinBox::valueChanged), 
             this, &MainWindow::processFeatures);
     connect(showEdgesCheck, &QCheckBox::stateChanged, 
-            this, &MainWindow::updateFeatureDisplay);
+            this, &MainWindow::updateDisplay);
     connect(showKeypointsCheck, &QCheckBox::stateChanged, 
-            this, &MainWindow::updateFeatureDisplay);
+            this, &MainWindow::updateDisplay);
+
+    return group;
+}
+
+QGroupBox* MainWindow::createSegmentationGroup() {
+    auto group = new QGroupBox("Segmentation", this);
+    auto layout = new QVBoxLayout(group);
+
+    // Method selection
+    auto methodLayout = new QHBoxLayout;
+    methodLayout->addWidget(new QLabel("Method:"));
+    segmentationMethodCombo = new QComboBox(this);
+    segmentationMethodCombo->addItem("Threshold", static_cast<int>(medical_vision::Segmentation::Method::THRESHOLD));
+    segmentationMethodCombo->addItem("Otsu", static_cast<int>(medical_vision::Segmentation::Method::OTSU));
+    segmentationMethodCombo->addItem("Adaptive", static_cast<int>(medical_vision::Segmentation::Method::ADAPTIVE_GAUSSIAN));
+    segmentationMethodCombo->addItem("Region Growing", static_cast<int>(medical_vision::Segmentation::Method::REGION_GROWING));
+    methodLayout->addWidget(segmentationMethodCombo);
+
+    // Parameters
+    auto paramsGroup = new QGroupBox("Parameters");
+    auto paramsLayout = new QGridLayout(paramsGroup);
+
+    // Threshold parameters
+    thresholdSpin = new QSpinBox(this);
+    thresholdSpin->setRange(0, 255);
+    thresholdSpin->setValue(128);
+    paramsLayout->addWidget(new QLabel("Threshold:"), 0, 0);
+    paramsLayout->addWidget(thresholdSpin, 0, 1);
+
+    maxValueSpin = new QSpinBox(this);
+    maxValueSpin->setRange(0, 255);
+    maxValueSpin->setValue(255);
+    paramsLayout->addWidget(new QLabel("Max Value:"), 1, 0);
+    paramsLayout->addWidget(maxValueSpin, 1, 1);
+
+    // Adaptive parameters
+    blockSizeSpin = new QSpinBox(this);
+    blockSizeSpin->setRange(3, 99);
+    blockSizeSpin->setValue(11);
+    blockSizeSpin->setSingleStep(2);
+    paramsLayout->addWidget(new QLabel("Block Size:"), 2, 0);
+    paramsLayout->addWidget(blockSizeSpin, 2, 1);
+
+    paramCSpin = new QDoubleSpinBox(this);
+    paramCSpin->setRange(-100, 100);
+    paramCSpin->setValue(2);
+    paramCSpin->setSingleStep(0.5);
+    paramsLayout->addWidget(new QLabel("Parameter C:"), 3, 0);
+    paramsLayout->addWidget(paramCSpin, 3, 1);
+
+    invertColorsCheck = new QCheckBox("Invert Colors");
+    paramsLayout->addWidget(invertColorsCheck, 4, 0, 1, 2);
+
+    showSegmentationCheck = new QCheckBox("Show Segmentation");
+    showSegmentationCheck->setChecked(true);
+
+    // Add to main layout
+    layout->addLayout(methodLayout);
+    layout->addWidget(paramsGroup);
+    layout->addWidget(showSegmentationCheck);
+
+    // Connect signals
+    connect(segmentationMethodCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::processSegmentation);
+    connect(thresholdSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::processSegmentation);
+    connect(maxValueSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::processSegmentation);
+    connect(blockSizeSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::processSegmentation);
+    connect(paramCSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &MainWindow::processSegmentation);
+    connect(invertColorsCheck, &QCheckBox::stateChanged,
+            this, &MainWindow::processSegmentation);
+    connect(showSegmentationCheck, &QCheckBox::stateChanged,
+            this, &MainWindow::updateDisplay);
 
     return group;
 }
@@ -335,7 +412,7 @@ void MainWindow::processImage() {
         processor.sharpen(strengthSpinner->value());
     }
 
-    updateFeatureDisplay();
+    updateDisplay();
 }
 
 void MainWindow::processFeatures() {
@@ -363,7 +440,7 @@ void MainWindow::processFeatures() {
             keypointDetectorCombo->currentData().toInt());
         keypointResult = featureDetector.detectKeypoints(currentImage, keypointMethod, keypointParams);
 
-        updateFeatureDisplay();
+        updateDisplay();
     }
     catch (const std::exception& e) {
         QMessageBox::warning(this, "Error", 
@@ -371,7 +448,57 @@ void MainWindow::processFeatures() {
     }
 }
 
-void MainWindow::updateFeatureDisplay() {
+void MainWindow::processSegmentation() {
+    if (!processor.isLoaded()) return;
+
+    try {
+        cv::Mat input = processor.getImage();
+        auto method = static_cast<medical_vision::Segmentation::Method>(
+            segmentationMethodCombo->currentData().toInt());
+
+        switch (method) {
+            case medical_vision::Segmentation::Method::THRESHOLD: {
+                medical_vision::Segmentation::ThresholdParams params;
+                params.threshold = thresholdSpin->value();
+                params.maxValue = maxValueSpin->value();
+                params.invertColors = invertColorsCheck->isChecked();
+                segmentationResult = segmentation.threshold(input, params);
+                break;
+            }
+            case medical_vision::Segmentation::Method::OTSU: {
+                segmentationResult = segmentation.otsuThreshold(input);
+                break;
+            }
+            case medical_vision::Segmentation::Method::ADAPTIVE_GAUSSIAN: {
+                medical_vision::Segmentation::AdaptiveParams params;
+                params.blockSize = blockSizeSpin->value();
+                params.C = paramCSpin->value();
+                params.maxValue = maxValueSpin->value();
+                params.invertColors = invertColorsCheck->isChecked();
+                segmentationResult = segmentation.adaptiveThreshold(input, params);
+                break;
+            }
+            case medical_vision::Segmentation::Method::REGION_GROWING: {
+                if (!seedPoints.empty()) {
+                    medical_vision::Segmentation::RegionGrowingParams params;
+                    params.seeds = seedPoints;
+                    params.threshold = thresholdSpin->value();
+                    segmentationResult = segmentation.regionGrowing(input, params);
+                }
+                break;
+            }
+        }
+
+        updateDisplay();
+    }
+    catch (const std::exception& e) {
+        QMessageBox::warning(this, "Error", 
+            QString("Segmentation failed: %1").arg(e.what()));
+    }
+}
+
+
+void MainWindow::updateDisplay() {
     if (!processor.isLoaded()) return;
 
     cv::Mat displayImage = processor.getImage().clone();
@@ -396,6 +523,10 @@ void MainWindow::updateFeatureDisplay() {
 
     if (showKeypointsCheck->isChecked() && !keypointResult.empty()) {
         displayImage = featureDetector.drawKeypoints(displayImage, keypointResult);
+    }
+
+    if (showSegmentationCheck->isChecked() && !segmentationResult.empty()) {
+        displayImage = segmentation.drawSegmentation(displayImage, segmentationResult, 0.3);
     }
 
     QImage qimg = matToQImage(displayImage);

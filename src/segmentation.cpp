@@ -72,12 +72,10 @@ cv::Mat Segmentation::segment(const cv::Mat& input, Method method, const void* p
                                                    : RegionGrowingParams());
                 break;
             case Method::WATERSHED:
-                result = watershed(input, params ? *static_cast<const WatershedParams*>(params) 
-                                               : WatershedParams());
+                // result = watershed(input, params ? *static_cast<const WatershedParams*>(params) : WatershedParams());
                 break;
             case Method::GRAPH_CUT:
-                result = graphCut(input, params ? *static_cast<const GraphCutParams*>(params) 
-                                              : GraphCutParams());
+                // result = graphCut(input, params ? *static_cast<const GraphCutParams*>(params) : GraphCutParams());
                 break;
             default:
                 throw std::runtime_error("Unknown segmentation method");
