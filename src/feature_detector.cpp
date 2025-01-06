@@ -6,7 +6,6 @@
 #include "../include/medical_vision/feature_detector.hpp"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/features2d.hpp>
-#include <opencv2/xfeatures2d.hpp>
 #include <stdexcept>
 
 namespace medical_vision {

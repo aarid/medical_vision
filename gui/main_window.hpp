@@ -7,10 +7,12 @@
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
+#include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QListWidget>
 #include <QtWidgets/QGroupBox>
 #include "../include/medical_vision/image_preprocessor.hpp"
+#include "../include/medical_vision/feature_detector.hpp"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -25,37 +27,53 @@ private slots:
     void previousImage();
     void updateImage();
     void processImage();
+    void processFeatures();
+    void updateFeatureDisplay();
 
 private:
+    // UI Setup functions
     void setupUI();
     void createMenus();
     void updateNavigationControls();
+    QGroupBox* createProcessingGroup();
+    QGroupBox* createFeatureDetectionGroup();
     QImage matToQImage(const cv::Mat& mat);
 
-    // UI Components
+    // Core components
     QWidget* centralWidget;
-    
-    // Navigation
+    medical_vision::ImagePreprocessor processor;
+    medical_vision::FeatureDetector featureDetector;
+    QStringList imageFiles;
+    size_t currentImageIndex{0};
+
+    // Navigation components
     QPushButton* prevButton;
     QPushButton* nextButton;
     QLabel* imageCountLabel;
-    
-    // Image display
+
+    // Display components
     QLabel* imageViewerOriginal;
     QLabel* imageViewerProcessed;
     QLabel* histogramView;
-    
-    // Processing controls
+
+    // Image processing controls
     QCheckBox* denoiseCheck;
     QCheckBox* claheCheck;
     QCheckBox* sharpenCheck;
     QDoubleSpinBox* strengthSpinner;
-    
-    // Pipeline
     QListWidget* pipelineList;
 
-    // Data
-    medical_vision::ImagePreprocessor processor;
-    QStringList imageFiles;
-    size_t currentImageIndex{0};
+    // Feature detection controls
+    QComboBox* edgeDetectorCombo;
+    QComboBox* keypointDetectorCombo;
+    QCheckBox* showEdgesCheck;
+    QCheckBox* showKeypointsCheck;
+    QSpinBox* threshold1Spin;
+    QSpinBox* threshold2Spin;
+    QSpinBox* apertureSizeSpin;
+    QSpinBox* maxKeypointsSpin;
+
+    // Feature detection results
+    cv::Mat edgeResult;
+    std::vector<cv::KeyPoint> keypointResult;
 };

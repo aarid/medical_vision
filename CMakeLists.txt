@@ -18,17 +18,16 @@ find_package(OpenCV REQUIRED)
 find_package(Qt6 COMPONENTS Core Gui GuiTools Widgets WidgetsTools REQUIRED )
 
 # Define source files
-set(LIB_SOURCES
-    src/image_preprocessor.cpp
+file(GLOB_RECURSE LIB_SOURCES
+    "src/*.cpp"
 )
 
-set(GUI_SOURCES
-    gui/main.cpp
-    gui/main_window.cpp
+file(GLOB_RECURSE GUI_SOURCES
+    "gui/*.cpp"
 )
 
-set(GUI_HEADERS
-    gui/main_window.hpp
+file(GLOB_RECURSE GUI_HEADERS
+    "gui/*.hpp"
 )
 
 # Library

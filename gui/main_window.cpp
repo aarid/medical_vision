@@ -50,6 +50,11 @@ void MainWindow::setupUI() {
 
     // Image viewers
     auto viewersLayout = new QHBoxLayout;
+    auto originalGroup = new QGroupBox("Original", this);
+    auto processedGroup = new QGroupBox("Processed", this);
+    auto originalLayout = new QVBoxLayout(originalGroup);
+    auto processedLayout = new QVBoxLayout(processedGroup);
+
     imageViewerOriginal = new QLabel(this);
     imageViewerProcessed = new QLabel(this);
     
@@ -59,25 +64,67 @@ void MainWindow::setupUI() {
     imageViewerOriginal->setAlignment(Qt::AlignCenter);
     imageViewerProcessed->setAlignment(Qt::AlignCenter);
 
-    viewersLayout->addWidget(imageViewerOriginal);
-    viewersLayout->addWidget(imageViewerProcessed);
+    originalLayout->addWidget(imageViewerOriginal);
+    processedLayout->addWidget(imageViewerProcessed);
+
+    viewersLayout->addWidget(originalGroup);
+    viewersLayout->addWidget(processedGroup);
 
     // Histogram view
+    auto histogramGroup = new QGroupBox("Histogram", this);
+    auto histogramLayout = new QVBoxLayout(histogramGroup);
     histogramView = new QLabel(this);
     histogramView->setMinimumHeight(200);
     histogramView->setAlignment(Qt::AlignCenter);
+    histogramLayout->addWidget(histogramView);
 
     leftLayout->addLayout(navLayout);
     leftLayout->addLayout(viewersLayout);
-    leftLayout->addWidget(histogramView);
+    leftLayout->addWidget(histogramGroup);
 
     // Right panel (Controls)
     auto rightPanel = new QWidget;
     auto rightLayout = new QVBoxLayout(rightPanel);
 
-    // Processing controls group
-    auto processingGroup = new QGroupBox("Processing Options", this);
-    auto processingLayout = new QVBoxLayout(processingGroup);
+    // Add scrolling capability to right panel
+    auto scrollArea = new QScrollArea;
+    auto scrollWidget = new QWidget;
+    auto scrollLayout = new QVBoxLayout(scrollWidget);
+
+    // Processing controls
+    scrollLayout->addWidget(createProcessingGroup());
+    
+    // Feature detection controls
+    scrollLayout->addWidget(createFeatureDetectionGroup());
+
+    // Add stretch at the bottom
+    scrollLayout->addStretch();
+
+    // Setup scroll area
+    scrollWidget->setLayout(scrollLayout);
+    scrollArea->setWidget(scrollWidget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    rightLayout->addWidget(scrollArea);
+
+    // Set size policies
+    leftPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    rightPanel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    rightPanel->setFixedWidth(300);
+
+    // Add panels to main layout
+    mainLayout->addWidget(leftPanel);
+    mainLayout->addWidget(rightPanel);
+
+    // Set window properties
+    setWindowTitle("Medical Vision");
+}
+
+QGroupBox* MainWindow::createProcessingGroup() {
+    auto group = new QGroupBox("Image Processing", this);
+    auto layout = new QVBoxLayout(group);
 
     denoiseCheck = new QCheckBox("Denoise", this);
     claheCheck = new QCheckBox("CLAHE", this);
@@ -91,28 +138,13 @@ void MainWindow::setupUI() {
     strengthSpinner->setSingleStep(0.1);
     strengthLayout->addWidget(strengthSpinner);
 
-    processingLayout->addWidget(denoiseCheck);
-    processingLayout->addWidget(claheCheck);
-    processingLayout->addWidget(sharpenCheck);
-    processingLayout->addLayout(strengthLayout);
-
-    // Pipeline group
-    auto pipelineGroup = new QGroupBox("Processing Pipeline", this);
-    auto pipelineLayout = new QVBoxLayout(pipelineGroup);
-
-    pipelineList = new QListWidget(this);
-    auto pipelineButtonLayout = new QHBoxLayout;
-    
-    auto addButton = new QPushButton("Add", this);
-    auto removeButton = new QPushButton("Remove", this);
     auto processButton = new QPushButton("Process", this);
-    
-    pipelineButtonLayout->addWidget(addButton);
-    pipelineButtonLayout->addWidget(removeButton);
-    
-    pipelineLayout->addWidget(pipelineList);
-    pipelineLayout->addLayout(pipelineButtonLayout);
-    pipelineLayout->addWidget(processButton);
+
+    layout->addWidget(denoiseCheck);
+    layout->addWidget(claheCheck);
+    layout->addWidget(sharpenCheck);
+    layout->addLayout(strengthLayout);
+    layout->addWidget(processButton);
 
     // Connect processing signals
     connect(processButton, &QPushButton::clicked, this, &MainWindow::processImage);
@@ -122,13 +154,7 @@ void MainWindow::setupUI() {
     connect(strengthSpinner, QOverload<double>::of(&QDoubleSpinBox::valueChanged), 
             this, &MainWindow::processImage);
 
-    rightLayout->addWidget(processingGroup);
-    rightLayout->addWidget(pipelineGroup);
-    rightLayout->addStretch();
-
-    // Add panels to main layout
-    mainLayout->addWidget(leftPanel, 2);
-    mainLayout->addWidget(rightPanel, 1);
+    return group;
 }
 
 void MainWindow::createMenus() {
@@ -295,4 +321,143 @@ QImage MainWindow::matToQImage(const cv::Mat& mat) {
     }
 
     return QImage();
+}
+
+
+QGroupBox* MainWindow::createFeatureDetectionGroup() {
+    auto group = new QGroupBox("Feature Detection", this);
+    auto layout = new QVBoxLayout(group);
+
+    // Edge detection
+    auto edgeGroup = new QGroupBox("Edge Detection", this);
+    auto edgeLayout = new QGridLayout(edgeGroup);
+
+    edgeDetectorCombo = new QComboBox(this);
+    edgeDetectorCombo->addItem("Canny", static_cast<int>(medical_vision::FeatureDetector::EdgeDetector::CANNY));
+    edgeDetectorCombo->addItem("Sobel", static_cast<int>(medical_vision::FeatureDetector::EdgeDetector::SOBEL));
+    edgeDetectorCombo->addItem("Laplacian", static_cast<int>(medical_vision::FeatureDetector::EdgeDetector::LAPLACIAN));
+
+    showEdgesCheck = new QCheckBox("Show Edges", this);
+    
+    // Edge parameters
+    threshold1Spin = new QSpinBox(this);
+    threshold2Spin = new QSpinBox(this);
+    apertureSizeSpin = new QSpinBox(this);
+    
+    threshold1Spin->setRange(0, 255);
+    threshold2Spin->setRange(0, 255);
+    apertureSizeSpin->setRange(3, 7);
+    apertureSizeSpin->setSingleStep(2);
+    
+    threshold1Spin->setValue(100);
+    threshold2Spin->setValue(200);
+    apertureSizeSpin->setValue(3);
+
+    edgeLayout->addWidget(new QLabel("Method:"), 0, 0);
+    edgeLayout->addWidget(edgeDetectorCombo, 0, 1);
+    edgeLayout->addWidget(new QLabel("Threshold 1:"), 1, 0);
+    edgeLayout->addWidget(threshold1Spin, 1, 1);
+    edgeLayout->addWidget(new QLabel("Threshold 2:"), 2, 0);
+    edgeLayout->addWidget(threshold2Spin, 2, 1);
+    edgeLayout->addWidget(new QLabel("Aperture:"), 3, 0);
+    edgeLayout->addWidget(apertureSizeSpin, 3, 1);
+    edgeLayout->addWidget(showEdgesCheck, 4, 0, 1, 2);
+
+    // Keypoint detection
+    auto keypointGroup = new QGroupBox("Keypoint Detection", this);
+    auto keypointLayout = new QGridLayout(keypointGroup);
+
+    keypointDetectorCombo = new QComboBox(this);
+    keypointDetectorCombo->addItem("SIFT", static_cast<int>(medical_vision::FeatureDetector::KeypointDetector::SIFT));
+    keypointDetectorCombo->addItem("ORB", static_cast<int>(medical_vision::FeatureDetector::KeypointDetector::ORB));
+    keypointDetectorCombo->addItem("FAST", static_cast<int>(medical_vision::FeatureDetector::KeypointDetector::FAST));
+
+    showKeypointsCheck = new QCheckBox("Show Keypoints", this);
+    
+    maxKeypointsSpin = new QSpinBox(this);
+    maxKeypointsSpin->setRange(10, 5000);
+    maxKeypointsSpin->setValue(1000);
+
+    keypointLayout->addWidget(new QLabel("Method:"), 0, 0);
+    keypointLayout->addWidget(keypointDetectorCombo, 0, 1);
+    keypointLayout->addWidget(new QLabel("Max Points:"), 1, 0);
+    keypointLayout->addWidget(maxKeypointsSpin, 1, 1);
+    keypointLayout->addWidget(showKeypointsCheck, 2, 0, 1, 2);
+
+    // Add to main layout
+    layout->addWidget(edgeGroup);
+    layout->addWidget(keypointGroup);
+
+    // Connect signals
+    connect(edgeDetectorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), 
+            this, &MainWindow::processFeatures);
+    connect(keypointDetectorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), 
+            this, &MainWindow::processFeatures);
+    connect(threshold1Spin, QOverload<int>::of(&QSpinBox::valueChanged), 
+            this, &MainWindow::processFeatures);
+    connect(threshold2Spin, QOverload<int>::of(&QSpinBox::valueChanged), 
+            this, &MainWindow::processFeatures);
+    connect(apertureSizeSpin, QOverload<int>::of(&QSpinBox::valueChanged), 
+            this, &MainWindow::processFeatures);
+    connect(maxKeypointsSpin, QOverload<int>::of(&QSpinBox::valueChanged), 
+            this, &MainWindow::processFeatures);
+    connect(showEdgesCheck, &QCheckBox::stateChanged, 
+            this, &MainWindow::updateFeatureDisplay);
+    connect(showKeypointsCheck, &QCheckBox::stateChanged, 
+            this, &MainWindow::updateFeatureDisplay);
+
+    return group;
+}
+
+void MainWindow::processFeatures() {
+    if (!processor.isLoaded()) return;
+
+    try {
+        // Get current image
+        cv::Mat currentImage = processor.getImage();
+
+        // Edge detection
+        medical_vision::FeatureDetector::EdgeParams edgeParams;
+        edgeParams.threshold1 = threshold1Spin->value();
+        edgeParams.threshold2 = threshold2Spin->value();
+        edgeParams.apertureSize = apertureSizeSpin->value();
+
+        auto edgeMethod = static_cast<medical_vision::FeatureDetector::EdgeDetector>(
+            edgeDetectorCombo->currentData().toInt());
+        edgeResult = featureDetector.detectEdges(currentImage, edgeMethod, edgeParams);
+
+        // Keypoint detection
+        medical_vision::FeatureDetector::KeypointParams keypointParams;
+        keypointParams.maxKeypoints = maxKeypointsSpin->value();
+
+        auto keypointMethod = static_cast<medical_vision::FeatureDetector::KeypointDetector>(
+            keypointDetectorCombo->currentData().toInt());
+        keypointResult = featureDetector.detectKeypoints(currentImage, keypointMethod, keypointParams);
+
+        updateFeatureDisplay();
+    }
+    catch (const std::exception& e) {
+        QMessageBox::warning(this, "Error", QString("Feature detection failed: %1").arg(e.what()));
+    }
+}
+
+void MainWindow::updateFeatureDisplay() {
+    if (!processor.isLoaded()) return;
+
+    cv::Mat displayImage = processor.getImage().clone();
+
+    if (showEdgesCheck->isChecked() && !edgeResult.empty()) {
+        // Overlay edges in red
+        cv::Mat edges;
+        cv::cvtColor(edgeResult, edges, cv::COLOR_GRAY2BGR);
+        cv::addWeighted(displayImage, 0.7, edges, 0.3, 0, displayImage);
+    }
+
+    if (showKeypointsCheck->isChecked() && !keypointResult.empty()) {
+        displayImage = featureDetector.drawKeypoints(displayImage, keypointResult);
+    }
+
+    QImage qimg = matToQImage(displayImage);
+    imageViewerProcessed->setPixmap(QPixmap::fromImage(qimg).scaled(
+        imageViewerProcessed->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
