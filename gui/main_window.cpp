@@ -205,20 +205,43 @@ void MainWindow::updateImage() {
         return;
     }
 
-    // Display original image
-    cv::Mat originalMat = processor.getOriginalImage();
-    QImage originalQImage = matToQImage(originalMat);
-    imageViewerOriginal->setPixmap(QPixmap::fromImage(originalQImage).scaled(
-        imageViewerOriginal->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    try {
 
-    // Process and display processed image
-    processImage();
+        // Display original image
+        cv::Mat originalMat = processor.getOriginalImage();
+        QImage originalQImage = matToQImage(originalMat);
+        if (originalQImage.isNull()) {
+            QMessageBox::warning(this, "Error", "Failed to convert original image");
+            return;
+        }
 
-    // Update histogram
-    cv::Mat histMat = processor.getHistogram();
-    QImage histQImage = matToQImage(histMat);
-    histogramView->setPixmap(QPixmap::fromImage(histQImage).scaled(
-        histogramView->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        QPixmap originalPixmap = QPixmap::fromImage(originalQImage);
+        if (originalPixmap.isNull()) {
+            QMessageBox::warning(this, "Error", "Failed to create pixmap from original image");
+            return;
+        }
+
+        imageViewerOriginal->setPixmap(originalPixmap.scaled(
+            imageViewerOriginal->size(), 
+            Qt::KeepAspectRatio, 
+            Qt::SmoothTransformation));
+
+        // Process and display processed image
+        processImage();
+
+        // Update histogram
+        cv::Mat histMat = processor.getHistogram();
+        QImage histQImage = matToQImage(histMat);
+        if (!histQImage.isNull()) {
+            histogramView->setPixmap(QPixmap::fromImage(histQImage).scaled(
+                histogramView->size(), 
+                Qt::KeepAspectRatio, 
+                Qt::SmoothTransformation));
+        }
+    }
+    catch (const std::exception& e) {
+        QMessageBox::warning(this, "Error", QString("Error processing image: %1").arg(e.what()));
+    }
 }
 
 void MainWindow::processImage() {
@@ -248,16 +271,27 @@ void MainWindow::processImage() {
 }
 
 QImage MainWindow::matToQImage(const cv::Mat& mat) {
-    if(mat.empty()) return QImage();
-
-    if(mat.type() == CV_8UC1) {
-        return QImage(mat.data, mat.cols, mat.rows, mat.step, QImage::Format_Grayscale8);
+    if (mat.empty()) {
+        return QImage();
     }
 
-    if(mat.type() == CV_8UC3) {
+    // 8-bit, 1 channel
+    if (mat.type() == CV_8UC1) {
+        return QImage(mat.data, mat.cols, mat.rows, mat.step, QImage::Format_Grayscale8).copy();
+    }
+
+
+    // 8-bit, 3 channels
+    if (mat.type() == CV_8UC3) {
         cv::Mat rgb;
         cv::cvtColor(mat, rgb, cv::COLOR_BGR2RGB);
-        return QImage(rgb.data, rgb.cols, rgb.rows, rgb.step, QImage::Format_RGB888);
+        return QImage(rgb.data, rgb.cols, rgb.rows, rgb.step, QImage::Format_RGB888).copy();
+    }
+
+
+    // 8-bit, 4 channels
+    if (mat.type() == CV_8UC4) {
+        return QImage(mat.data, mat.cols, mat.rows, mat.step, QImage::Format_RGBA8888).copy();
     }
 
     return QImage();
