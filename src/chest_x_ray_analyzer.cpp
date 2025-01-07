@@ -86,19 +86,48 @@ ChestXRayAnalyzer::AnalysisResult ChestXRayAnalyzer::analyze(const cv::Mat& imag
 }
 
 cv::Mat ChestXRayAnalyzer::preprocessImage(const cv::Mat& image) const {
-    cv::Mat processed;
-    
-    // Convert to float and normalize
-    image.convertTo(processed, CV_32F, PIXEL_SCALE);
+    try {
+        cv::Mat processed;
+        
+        // 1. Vérifier que c'est bien une image en niveaux de gris
+        if (image.channels() != 1) {
+            cv::cvtColor(image, processed, cv::COLOR_BGR2GRAY);
+        } else {
+            processed = image.clone();
+        }
 
-    // Resize to network input size
-    cv::resize(processed, processed, config_.inputSize);
+        // 2. Redimensionner en gardant le ratio
+        cv::Mat resized;
+        double scale = std::min(
+            config_.inputSize.width / static_cast<double>(processed.cols),
+            config_.inputSize.height / static_cast<double>(processed.rows)
+        );
+        cv::Size newSize(
+            static_cast<int>(processed.cols * scale),
+            static_cast<int>(processed.rows * scale)
+        );
+        cv::resize(processed, resized, newSize);
 
-    // Normalize using ImageNet mean and std
-    processed = (processed - MEAN_VAL) / STD_VAL;
+        // 3. Padding pour atteindre la taille cible
+        cv::Mat padded = cv::Mat::zeros(config_.inputSize, CV_8UC1);
+        int top = (config_.inputSize.height - resized.rows) / 2;
+        int left = (config_.inputSize.width - resized.cols) / 2;
+        resized.copyTo(padded(cv::Rect(left, top, resized.cols, resized.rows)));
 
-    // Create blob
-    return cv::dnn::blobFromImage(processed);
+        // 4. Normalisation
+        padded.convertTo(processed, CV_32F, PIXEL_SCALE);
+        processed = (processed - MEAN_VAL) / STD_VAL;
+
+        // 5. Répéter le canal en niveaux de gris pour simuler 3 canaux
+        std::vector<cv::Mat> channels = {processed, processed, processed};
+        cv::merge(channels, processed);
+
+        // 6. Créer le blob pour le réseau
+        return cv::dnn::blobFromImage(processed);
+    }
+    catch (const cv::Exception& e) {
+        throw std::runtime_error("Preprocessing failed: " + std::string(e.what()));
+    }
 }
 
 std::vector<ChestXRayAnalyzer::Detection> ChestXRayAnalyzer::postprocessOutputs(
