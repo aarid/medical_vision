@@ -1,0 +1,34 @@
+{
+    "model_config": {
+        "input_size": [224, 224],
+        "input_channels": 1,
+        "mean": 0.485,
+        "std": 0.229,
+        "classes": [
+            "Atelectasis",
+            "Consolidation",
+            "Infiltration",
+            "Pneumothorax",
+            "Edema",
+            "Emphysema",
+            "Fibrosis",
+            "Effusion",
+            "Pneumonia",
+            "Pleural_Thickening",
+            "Cardiomegaly",
+            "Nodule",
+            "Mass",
+            "Hernia"
+        ]
+    },
+    "preprocessing": {
+        "resize_method": "keep_aspect_ratio",
+        "normalize": true,
+        "to_float": true
+    },
+    "postprocessing": {
+        "confidence_threshold": 0.5,
+        "multi_label": true,
+        "apply_sigmoid": true
+    }
+}
