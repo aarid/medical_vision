@@ -9,6 +9,7 @@
 #include "widgets/processing_panel.hpp"
 #include "widgets/feature_panel.hpp"
 #include "widgets/segmentation_panel.hpp"
+#include "widgets/analysis_panel.hpp"
 
 #include "../include/medical_vision/image_preprocessor.hpp"
 #include "../include/medical_vision/feature_detector.hpp"
@@ -42,7 +43,8 @@ private:
     ProcessingPanel* processingPanel{nullptr};
     FeaturePanel* featurePanel{nullptr};
     SegmentationPanel* segmentationPanel{nullptr};
-    
+    AnalysisPanel* analysisPanel{nullptr};
+
     // Navigation controls
     QPushButton* prevButton{nullptr};
     QPushButton* nextButton{nullptr};
@@ -52,6 +54,7 @@ private:
     medical_vision::ImagePreprocessor processor;
     medical_vision::FeatureDetector featureDetector;
     medical_vision::Segmentation segmentation;
+
 
     // Image data
     QStringList imageFiles;

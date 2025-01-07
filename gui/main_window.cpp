@@ -58,6 +58,7 @@ void MainWindow::setupUI() {
     processingPanel = new ProcessingPanel(this);
     featurePanel = new FeaturePanel(this);
     segmentationPanel = new SegmentationPanel(this);
+    analysisPanel = new AnalysisPanel(this);
 
     // Add panels to right layout with scroll area
     auto scrollArea = new QScrollArea(this);
@@ -67,6 +68,7 @@ void MainWindow::setupUI() {
     scrollLayout->addWidget(processingPanel);
     scrollLayout->addWidget(featurePanel);
     scrollLayout->addWidget(segmentationPanel);
+    scrollLayout->addWidget(analysisPanel);  
     scrollLayout->addStretch();
 
     scrollWidget->setLayout(scrollLayout);
@@ -208,6 +210,10 @@ void MainWindow::processImage() {
         if (segSettings.enabled) {
             cv::Mat segmentation_image = segmentation.segment(displayImage, segSettings.method);
             processedViewer->setOverlay(segmentation_image, 0.3);
+        }
+
+        if (analysisPanel && analysisPanel->GetIsModelLoaded()) {
+            analysisPanel->analyzeImage(processor.getImage());
         }
 
         // Update display
