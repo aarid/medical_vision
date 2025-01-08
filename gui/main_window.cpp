@@ -8,6 +8,7 @@
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QScrollArea>
 #include <QtWidgets/QLabel>
+#include "opencv2/imgcodecs.hpp"
 
 MainWindow::MainWindow(QWidget* parent) 
     : QMainWindow(parent) {
@@ -98,6 +99,7 @@ void MainWindow::setupUI() {
 }
 
 void MainWindow::setupMenus() {
+    // File Menu
     auto fileMenu = menuBar()->addMenu(tr("&File"));
     
     auto openAction = new QAction(tr("&Open Folder..."), this);
@@ -105,12 +107,121 @@ void MainWindow::setupMenus() {
     connect(openAction, &QAction::triggered, this, &MainWindow::openFolder);
     fileMenu->addAction(openAction);
 
+    saveAction = new QAction(tr("&Save Processed Image..."), this);
+    saveAction->setShortcut(QKeySequence::Save);
+    saveAction->setEnabled(false);  // Enabled only when image is processed
+    connect(saveAction, &QAction::triggered, this, &MainWindow::saveProcessedImage);
+    fileMenu->addAction(saveAction);
+
     fileMenu->addSeparator();
 
-    auto exitAction = new QAction(tr("&Exit"), this);
+    auto exitAction = new QAction(tr("E&xit"), this);
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
     fileMenu->addAction(exitAction);
+
+    // Help Menu
+    auto helpMenu = menuBar()->addMenu(tr("&Help"));
+    
+    auto helpAction = new QAction(tr("&Quick Help"), this);
+    helpAction->setShortcut(QKeySequence::HelpContents);
+    connect(helpAction, &QAction::triggered, this, &MainWindow::showHelp);
+    helpMenu->addAction(helpAction);
+
+    helpMenu->addSeparator();
+
+    auto aboutAction = new QAction(tr("&About"), this);
+    connect(aboutAction, &QAction::triggered, this, &MainWindow::showAbout);
+    helpMenu->addAction(aboutAction);
+}
+
+void MainWindow::saveProcessedImage() {
+    if (!processor.isLoaded()) return;
+
+    QString defaultName = getDefaultSaveFilename();
+    QString filePath = QFileDialog::getSaveFileName(
+        this,
+        tr("Save Processed Image"),
+        defaultName,
+        tr("Images (*.png *.jpg *.tiff);;All Files (*.*)")
+    );
+
+    if (filePath.isEmpty()) return;
+
+    try {
+        cv::Mat processedImage = processor.getImage();
+        if (cv::imwrite(filePath.toStdString(), processedImage)) {
+            statusBar()->showMessage(tr("Image saved successfully"), 3000);
+        } else {
+            QMessageBox::warning(this, tr("Save Error"),
+                tr("Failed to save the image"));
+        }
+    }
+    catch (const std::exception& e) {
+        QMessageBox::warning(this, tr("Save Error"),
+            tr("Error saving image: %1").arg(e.what()));
+    }
+}
+
+QString MainWindow::getDefaultSaveFilename() const {
+    QFileInfo currentFile(imageFiles[currentImageIndex]);
+    QString baseName = currentFile.completeBaseName();
+    QString suffix = currentFile.suffix();
+    
+    return QString("%1_processed.%2")
+        .arg(baseName)
+        .arg(suffix);
+}
+
+void MainWindow::showHelp() {
+    QMessageBox help(this);
+    help.setWindowTitle(tr("Quick Help"));
+    help.setTextFormat(Qt::RichText);
+    help.setText(tr(
+        "<h3>Quick Guide</h3>"
+        "<p><b>Navigation:</b></p>"
+        "<ul>"
+        "<li>Use arrows or buttons to navigate between images</li>"
+        "<li>Adjust processing parameters in the right panel</li>"
+        "</ul>"
+        "<p><b>Processing:</b></p>"
+        "<ul>"
+        "<li><i>Denoise:</i> Reduce image noise</li>"
+        "<li><i>CLAHE:</i> Enhance local contrast</li>"
+        "<li><i>Sharpen:</i> Improve edge definition</li>"
+        "</ul>"
+        "<p><b>Feature Detection:</b></p>"
+        "<ul>"
+        "<li>Choose detection method (Edges/Keypoints)</li>"
+        "<li>Adjust parameters for optimal results</li>"
+        "</ul>"
+        "<p><b>Segmentation:</b></p>"
+        "<ul>"
+        "<li>Select segmentation method</li>"
+        "<li>Use threshold controls or manual seeds</li>"
+        "</ul>"
+        "<p><b>Shortcuts:</b></p>"
+        "<ul>"
+        "<li>Ctrl+O: Open folder</li>"
+        "<li>Ctrl+S: Save processed image</li>"
+        "<li>F1: This help</li>"
+        "</ul>"
+    ));
+    help.exec();
+}
+
+void MainWindow::showAbout() {
+    QMessageBox::about(this, tr("About Medical Vision"),
+        tr("<h3>Medical Vision</h3>"
+           "<p>Version 1.0</p>"
+           "<p>A modern medical image processing application.</p>"
+           "<p>Features:</p>"
+           "<ul>"
+           "<li>Advanced image processing</li>"
+           "<li>Feature detection</li>"
+           "<li>Medical image segmentation</li>"
+           "</ul>"
+           "<p>Built with OpenCV and Qt</p>"));
 }
 
 void MainWindow::setupConnections() {
@@ -231,6 +342,11 @@ void MainWindow::processImage() {
 
         // Update display
         processedViewer->setImage(displayImage);
+
+         // Enable save action after successful processing
+        if (saveAction) {
+            saveAction->setEnabled(true);
+        }
 
     }  catch (const std::exception& e) {
         QMessageBox::warning(this, tr("Processing Error"),

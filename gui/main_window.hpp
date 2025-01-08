@@ -4,6 +4,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QLabel>
 
+#include "QtGui/qaction.h"
 #include "widgets/image_viewer.hpp"
 #include "widgets/histogram_viewer.hpp"
 #include "widgets/processing_panel.hpp"
@@ -28,6 +29,9 @@ private slots:
     void previousImage();
     void processImage();
     void handleSeedPlacement(cv::Point pos, Qt::MouseButton button);
+    void saveProcessedImage();
+    void showHelp();
+    void showAbout();
 
 private:
     void setupUI();
@@ -35,6 +39,7 @@ private:
     void setupConnections();
     void updateNavigationState();
     void loadCurrentImage();
+    QString getDefaultSaveFilename() const;
 
     // UI Components
     ImageViewer* originalViewer{nullptr};
@@ -49,6 +54,7 @@ private:
     QPushButton* prevButton{nullptr};
     QPushButton* nextButton{nullptr};
     QLabel* imageCountLabel{nullptr};
+    QAction* saveAction{nullptr};
 
     // Processing core
     medical_vision::ImagePreprocessor processor;
