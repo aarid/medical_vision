@@ -58,7 +58,19 @@ void MainWindow::setupUI() {
     processingPanel = new ProcessingPanel(this);
     featurePanel = new FeaturePanel(this);
     segmentationPanel = new SegmentationPanel(this);
-    analysisPanel = new AnalysisPanel(this);
+    
+    // TODO Finish analysisPanel
+    // analysisPanel = new AnalysisPanel(this);
+    // // Load model
+    // const QString modelPath = "D:/enhanced_projects/medical_vision/data/models/densenet/densenet121.onnx";
+    // const QString configPath = "D:/enhanced_projects/medical_vision/data/models/densenet/densenet121-config.json";
+
+    // if (QFile::exists(modelPath) && QFile::exists(configPath)) {
+    //     analysisPanel->loadModel(modelPath, configPath);
+    // } else {
+    //     QMessageBox::warning(this, tr("Model Loading"),
+    //         tr("Model files not found. Please download the model first."));
+    // }
 
     // Add panels to right layout with scroll area
     auto scrollArea = new QScrollArea(this);
@@ -68,7 +80,8 @@ void MainWindow::setupUI() {
     scrollLayout->addWidget(processingPanel);
     scrollLayout->addWidget(featurePanel);
     scrollLayout->addWidget(segmentationPanel);
-    scrollLayout->addWidget(analysisPanel);  
+    // TODO Finish analysisPanel
+    // scrollLayout->addWidget(analysisPanel);  
     scrollLayout->addStretch();
 
     scrollWidget->setLayout(scrollLayout);
@@ -212,9 +225,9 @@ void MainWindow::processImage() {
             processedViewer->setOverlay(segmentation_image, 0.3);
         }
 
-        if (analysisPanel && analysisPanel->GetIsModelLoaded()) {
-            analysisPanel->analyzeImage(processor.getImage());
-        }
+        // if (analysisPanel && analysisPanel->GetIsModelLoaded()) {
+        //     analysisPanel->analyzeImage(processor.getImage());
+        // }
 
         // Update display
         processedViewer->setImage(displayImage);

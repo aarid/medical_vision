@@ -134,8 +134,14 @@ std::vector<ChestXRayAnalyzer::Detection> ChestXRayAnalyzer::postprocessOutputs(
     const cv::Mat& outputs) const {
     
     std::vector<Detection> detections;
-    float* data = (float*)outputs.data;
+    cv::Mat probabilities;
     
+    // Appliquer sigmoid pour convertir en probabilités
+    cv::exp(-outputs, probabilities);
+    probabilities = 1.0 / (1.0 + probabilities);
+
+    // Extraire les détections au-dessus du seuil
+    float* data = (float*)probabilities.data;
     for (size_t i = 0; i < pathologyNames_.size(); ++i) {
         float confidence = data[i];
         if (confidence >= config_.confidenceThreshold) {
@@ -145,6 +151,12 @@ std::vector<ChestXRayAnalyzer::Detection> ChestXRayAnalyzer::postprocessOutputs(
             detections.push_back(det);
         }
     }
+
+    // Trier par confiance décroissante
+    std::sort(detections.begin(), detections.end(),
+              [](const Detection& a, const Detection& b) {
+                  return a.confidence > b.confidence;
+              });
 
     return detections;
 }
@@ -168,9 +180,26 @@ cv::Mat ChestXRayAnalyzer::generateHeatmap(
 }
 
 bool ChestXRayAnalyzer::validateInput(const cv::Mat& image) const {
-    if (image.empty()) return false;
-    if (image.channels() != CHANNEL_COUNT) return false;
-    if (image.type() != CV_8UC1) return false;
+    if (image.empty()) {
+        throw std::runtime_error("Empty image");
+    }
+
+    // Vérifier la taille minimale
+    if (image.rows < 200 || image.cols < 200) {
+        throw std::runtime_error("Image too small");
+    }
+
+    // Vérifier le type d'image
+    if (image.type() != CV_8UC1 && image.type() != CV_8UC3) {
+        throw std::runtime_error("Unsupported image type");
+    }
+
+    // Vérifier le contraste et la luminosité
+    ImageStats stats = computeImageStats(image);
+    if (stats.max - stats.min < 50) {
+        throw std::runtime_error("Image contrast too low");
+    }
+
     return true;
 }
 
@@ -206,6 +235,26 @@ void ChestXRayAnalyzer::setConfidenceThreshold(float threshold) {
     if (threshold >= 0.0f && threshold <= 1.0f) {
         config_.confidenceThreshold = threshold;
     }
+}
+
+
+ChestXRayAnalyzer::ImageStats ChestXRayAnalyzer::computeImageStats(const cv::Mat& image) const {
+    ImageStats stats;
+    cv::Mat gray;
+    
+    if (image.channels() == 1) {
+        gray = image;
+    } else {
+        cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+    }
+
+    cv::minMaxLoc(gray, &stats.min, &stats.max);
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(gray, mean, stddev);
+    stats.mean = mean[0];
+    stats.std = stddev[0];
+
+    return stats;
 }
 
 } // namespace medical_vision

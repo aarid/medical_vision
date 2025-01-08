@@ -73,8 +73,19 @@ private:
     static constexpr float PIXEL_SCALE = 1.0f/255.0f;
     
     // Preprocessing parameters
-    static constexpr float MEAN_VAL = 0.485f;
-    static constexpr float STD_VAL = 0.229f;
+    static constexpr int TARGET_SIZE = 224;  // DenseNet input size
+    static constexpr float MEAN_VAL = 0.485f;  // ImageNet mean
+    static constexpr float STD_VAL = 0.229f;   // ImageNet std
+
+    struct ImageStats {
+        double min;
+        double max;
+        double mean;
+        double std;
+    };
+
+    // Helper function to compute image statistics
+    ImageStats computeImageStats(const cv::Mat& image) const;
 };
 
 } // namespace medical_vision
