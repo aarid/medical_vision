@@ -72,7 +72,7 @@ cv::Mat Segmentation::segment(const cv::Mat& input, Method method, const void* p
                                                    : RegionGrowingParams());
                 break;
             case Method::WATERSHED:
-                // result = watershed(input, params ? *static_cast<const WatershedParams*>(params) : WatershedParams());
+                result = watershed(input, params ? *static_cast<const WatershedParams*>(params) : WatershedParams());
                 break;
             case Method::GRAPH_CUT:
                 // result = graphCut(input, params ? *static_cast<const GraphCutParams*>(params) : GraphCutParams());
@@ -177,29 +177,33 @@ cv::Mat Segmentation::watershed(const cv::Mat& input, const WatershedParams& par
         cv::Mat markers = cv::Mat::zeros(processed.size(), CV_32S);
 
         if (params.useDistanceTransform) {
-            // Use distance transform approach
+            // Distance transform approach
             cv::Mat binary;
             cv::threshold(processed, binary, 0, 255, cv::THRESH_BINARY + cv::THRESH_OTSU);
             
-            // Compute distance transform
-            cv::Mat dist;
-            cv::distanceTransform(binary, dist, cv::DIST_L2, 3);
-            
-            // Normalize and threshold for foreground markers
-            cv::normalize(dist, dist, 0, 1.0, cv::NORM_MINMAX);
-            cv::Mat foreground;
-            cv::threshold(dist, foreground, 0.3, 1.0, cv::THRESH_BINARY);
-            
-            // Dilate for background markers
-            cv::Mat background;
-            cv::dilate(binary, background, cv::Mat(), cv::Point(-1,-1), 3);
-            cv::threshold(background, background, 1, 128, cv::THRESH_BINARY_INV);
+            if (!binary.empty()) {
+                // Compute distance transform
+                cv::Mat dist;
+                cv::distanceTransform(binary, dist, cv::DIST_L2, 3);
+                
+                // Normalize and threshold for foreground markers
+                cv::normalize(dist, dist, 0, 1.0, cv::NORM_MINMAX);
+                cv::Mat foreground;
+                cv::threshold(dist, foreground, 0.3, 1.0, cv::THRESH_BINARY);
+                
+                // Create background markers
+                cv::Mat background;
+                if (!binary.empty()) {
+                    cv::dilate(binary, background, cv::Mat(), cv::Point(-1,-1), 3);
+                    cv::threshold(background, background, 1, 128, cv::THRESH_BINARY_INV);
+                }
 
-            // Combine markers
-            markers = background + cv::Mat(foreground * 255);
+                // Combine markers
+                markers = background + cv::Mat(foreground * 255);
+            }
         }
         else if (!params.foregroundSeeds.empty() || !params.backgroundSeeds.empty()) {
-            // Use manual seeds
+            // Manual seeds approach
             markers = cv::Mat::zeros(processed.size(), CV_32S);
             
             // Mark background seeds
@@ -231,19 +235,21 @@ cv::Mat Segmentation::watershed(const cv::Mat& input, const WatershedParams& par
         }
 
         // Apply watershed
-        cv::watershed(inputBGR, markers);
+        if (!markers.empty() && !inputBGR.empty()) {
+            cv::watershed(inputBGR, markers);
 
-        // Create result mask
-        cv::Mat result = cv::Mat::zeros(markers.size(), CV_8UC1);
-        result.setTo(255, markers == 2);  // Foreground regions
+            // Create result mask
+            cv::Mat result = cv::Mat::zeros(markers.size(), CV_8UC1);
+            result.setTo(255, markers == 2);  // Foreground regions
 
-        // Optional: Clean up the result
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3,3));
-        cv::morphologyEx(result, result, cv::MORPH_CLOSE, kernel);
-
-        return result;
+            
+            return result;
+        }
+        else {
+            throw std::runtime_error("Invalid input for watershed");
+        }
     }
-    catch (const std::exception& e) {
+    catch (const cv::Exception& e) {
         throw std::runtime_error(std::string("Watershed segmentation failed: ") + e.what());
     }
 }

@@ -36,3 +36,4 @@ data/test_images/*
 data/tests/*
 !data/test_images/README.md
 .clangd
+data/*.csv

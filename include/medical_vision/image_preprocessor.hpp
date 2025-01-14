@@ -63,7 +63,7 @@ public:
     bool normalize(double minValue = 0, double maxValue = 255);
     bool adjustContrast(double alpha = 1.0, double beta = 0);
     bool histogramProcessing(HistogramMethod method);
-    bool clahe(double clipLimit = 2.0, cv::Size tileGridSize = cv::Size(8, 8));
+    bool clahe(double clipLimit = 3.5, cv::Size tileGridSize = cv::Size(8, 8));
 
     // Edge enhancement
     bool sharpen(double strength = 1.0);

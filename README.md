@@ -2,6 +2,37 @@
 
 A modern C++ library for medical image processing with a focus on chest X-ray analysis.
 
+<div align="center">
+  <img src="docs/images/interface_overview.jpg" width="800"/>
+  <p><i>MedicalVision Interface Overview with Chest X-ray Analysis.
+    Infiltration and Mass Detection (00006585_010_InfiltrationMass) with Edge Enhancement. </i></p>
+</div>
+
+## Features Showcase
+
+### Medical Image Processing
+
+
+#### 1. Complex Case Analysis
+<div align="center">
+  <img src="docs/images/complex_case.jpg" width="800"/>
+  <p><i>Multiple Conditions (00006585_017AtelectasisEmphysemaPneumothorax) - Enhanced Visualization</i></p>
+</div>
+
+### Feature Detection
+
+#### Classic Image Processing
+<div align="center">
+  <img src="docs/images/lena_processing.jpg" width="800"/>
+  <p><i>Lena - Original, CLAHE Enhanced, Edge Detection</i></p>
+</div>
+
+#### Natural Scene Analysis
+<div align="center">
+  <img src="docs/images/mountain_features.jpg" width="800"/>
+  <p><i>Mountain Scene - SIFT Keypoint Detection</i></p>
+</div>
+
 ## Features
 
 - **Image Processing**
