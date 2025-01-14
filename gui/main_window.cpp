@@ -315,6 +315,9 @@ void MainWindow::processImage() {
 
         cv::Mat displayImage = processor.getImage().clone();
 
+        // CLear previous overlay
+        processedViewer->clearOverlay();
+
         // Apply feature detection
         auto featureSettings = featurePanel->getCurrentSettings();
         if (featureSettings.edgesEnabled) {
@@ -336,6 +339,7 @@ void MainWindow::processImage() {
             processedViewer->setOverlay(segmentation_image, 0.3);
         }
 
+        // TODO
         // if (analysisPanel && analysisPanel->GetIsModelLoaded()) {
         //     analysisPanel->analyzeImage(processor.getImage());
         // }
